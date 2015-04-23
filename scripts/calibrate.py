@@ -23,7 +23,6 @@ class Calibrate(object):
     This class defines the calibration for the arm (which by default
     is the left bottom_pos).
     """
-
     def __init__(self, limb='left'):
         self._rp = rospkg.RosPack()
         self._config_path = self._rp.get_path('baxter_mill') + '/config/'
@@ -34,7 +33,7 @@ class Calibrate(object):
         self._neutral_bool = False
         self._picking_bool = True
         self._mill_pos = {}
-        self.pick_pos = {}
+        self._picking_pos = {}
         self.br_pos = {}
         self._the_pose = Pose()
         self._should_io = baxter_interface.DigitalIO(self._limb +
@@ -69,49 +68,83 @@ class Calibrate(object):
         resp = self._iksvc(ik_request)
         return dict(zip(resp.joints[0].name, resp.joints[0].position))
 
-    def _blink_light(self, io_component=self._limb+"_itb_light_outer"):
+    def _blink_light(self, state):
         """
         Blinks a Digital Output on then off.
         """
+        io_component=self._limb+"_itb_light_outer"
         b = baxter_interface.digital_io.DigitalIO(io_component)
         print "Initial state: ", b.state
-        b.set_output(True)
-        rospy.sleep(1.5)
-        b.set_output(False)
-        rospy.sleep(1.5)
+        b.set_output(state)
+
+    def _generate_picking_positions(self):
+        # now generate picking positions
+        missed_pos = []
+        bottom_pose = self._picking_pose
+        counter = 0
+        for y in range(5):
+            for x in range(2):
+                counter += 1
+                if counter == 9:
+                    continue
+                if counter == 10:
+                    counter = 9
+                t = "p" + str(counter)
+                print t
+                x_o = y * 0.065 * -1
+                y_o = 0.065 * x
+                bottom_pos = self._find_joint_position(
+                    bottom_pose,
+                    x_off=x_o,
+                    y_off=y_o
+                )
+                top_pos = self._find_joint_position(
+                    bottom_pose,
+                    x_off=x_o,
+                    y_off=y_o,
+                    z_off=0.10
+                )
+                rospy.sleep(0.1)
+                self._picking_pos[t] = [bottom_pos, top_pos]
+                if len(self._picking_pos[t][0]) == 0:
+                    missed_pos.append((t, "bottom"))
+                if len(self._picking_pos[t][1]) == 0:
+                    missed_pos.append((t, "top"))
+        return missed_pos
 
     def _default_points(self, value):
         """
         Registers the picking point
         """
-        print "########## Clicked!"
         if value:
             if len(self._picking_pos) == 0 and self._limb == "left":
-                self._blink_light()
+                self._blink_light(True)
                 # Record default position
                 print 'Recording picking location'
-                self._picking_pos[0] = self._baxter_limb.joint_angles()
-                self._picking_pos[1] = self._find_joint_position(
-                    self._baxter_limb.endpoint_pose(),
-                    z_off=0.10)
+                self._picking_pose = self._baxter_limb.endpoint_pose()
+                self._generate_picking_positions()
+                self._blink_light(False)
             # Registers the central neutral point. Otherwise the arm
             # could move somewhere below the table while moving to the
             # chessboard positions.
             elif len(self._neutral_pos) == 0:
-                self._blink_light()
+                self._blink_light(True)
                 # Record neutral position
                 print 'Recording neutral location'
                 self._neutral_pos = self._baxter_limb.joint_angles()
                 self._neutral_bool = False
+                rospy.sleep(0.5)
+                self._blink_light(False)
 
             elif len(self.br_pos) == 0:
-                self._blink_light()
+                self._blink_light(True)
                 print 'Recording pick location'
                 self.br_pos[0] = self._baxter_limb.joint_angles()
                 self._the_pose = self._baxter_limb.endpoint_pose()
                 self.br_pos[1] = self._find_joint_position(
                     self._the_pose,
                     z_off=0.10)
+                self._blink_light(False)
             else:
                 print "Stop pressing! You have already calibrated!"
 
@@ -138,7 +171,6 @@ class Calibrate(object):
         Returns a list of non-generated positions (most likely
         to be empty)
         """
-
         if len(self.br_pos) != 0:
             missed_pos = []
             cur_bottom_pose = self._the_pose
@@ -174,10 +206,11 @@ class Calibrate(object):
         """
         Saves positions to config file.
         """
-
         print "Saving your positions to file!"
         f = open(file, 'w')
-        f.write('picking_pos=' + str(self._picking_pos) + '\n')
+        for x in range(1,10):
+            t = "p" + str(x)
+            f.write(str(t) + "=" + str(self._picking_pos[t]) + '\n')
         f.write('neutral_pos=' + str(self._neutral_pos) + '\n')
         for x in range(7):
             for y in range(7):
@@ -191,7 +224,6 @@ class Calibrate(object):
         """
         Main function of the class. Runs the calibrate procedure.
         """
-
         self.done_calibration = False
         while not self.done_calibration:
             self.read_file = raw_input("Are you sure you really want to"
@@ -240,8 +272,7 @@ class Calibrate(object):
             print "The IK generator has missed the following positions"
             print missed
             print "You will now repeat the calibration. Try again :)"
-            self.__init__("left")
-            # todo add manual partial calibration
+            self.__init__("left") # hack
         else:
             print "Saving your new configuration!"
             self._save_config(self._config_path + "left_positions.config")
@@ -259,6 +290,12 @@ class Calibrate(object):
         self._baxter_limb.move_to_joint_positions(self._mill_pos[(pos)][0])
         self._baxter_limb.move_to_joint_positions(self._mill_pos[(pos)][1])
 
+    def test_pick(self, pos):
+        self._baxter_limb.move_to_joint_positions(self._neutral_pos)
+        self._baxter_limb.move_to_joint_positions(self._picking_pos[(pos)][1])
+        self._baxter_limb.move_to_joint_positions(self._picking_pos[(pos)][0])
+        self._baxter_limb.move_to_joint_positions(self._picking_pos[(pos)][1])
+
     def test_right(self):
         pass
 
@@ -274,6 +311,9 @@ class Calibrate(object):
         self.test_move("a7")
         self.test_move("g7")
         self.test_move("g1")
+        self.test_pick("p1")
+        self.test_pick("p9")
+        self._baxter_limb.move_to_joint_positions(self._neutral_pos)
 
 
 def main():
