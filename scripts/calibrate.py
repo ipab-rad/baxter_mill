@@ -26,29 +26,27 @@ from baxter_core_msgs.srv import (
     SolvePositionIKRequest,
 )
 
-# import learn_play
-
 
 class Calibrate(object):
     """
     This class defines the calibration for the arm (which by default
-    is the left one).
+    is the left bottom_pos).
     """
 
     def __init__(self, limb='left'):
         self._rp = rospkg.RosPack()
-        self._config_path = self._rp.get_path('learn_play') + '/config/'
+        self._config_path = self._rp.get_path('baxter_mill') + '/config/'
 
         self._limb = limb
         self._baxter_limb = baxter_interface.Limb(self._limb)
         self._neutral_pos = {}
-        self._default_pos = {}
+        self._picking_pos = {}
         self._square_length = 50  # mm - this will also be the offset
 
         self._neutral_bool = False
         self._default_bool = True
 
-        self._chess_pos = {}  # dict of list (tuple) of dict (sigh)
+        self._mill_pos = {}  # dict of list (tuple) of dict (sigh)
 
         self.pick_pos = {}  # picking position
         self.br_pos = {}  # bottom right position (7,0)
@@ -105,14 +103,14 @@ class Calibrate(object):
         """
         Registers the picking point
         """
-
+        print "########## Clicked!"
         if value:
-            if len(self._default_pos) == 0:
+            if len(self._picking_pos) == 0 and self._limb == "left":
                 self._blink_light()
                 # Record default position
-                print 'Recording default location'
-                self._default_pos[0] = self._baxter_limb.joint_angles()
-                self._default_pos[1] = self._find_joint_position(
+                print 'Recording picking location'
+                self._picking_pos[0] = self._baxter_limb.joint_angles()
+                self._picking_pos[1] = self._find_joint_position(
                     self._baxter_limb.endpoint_pose(),
                     z_off=0.10)
             # Registers the central neutral point. Otherwise the arm
@@ -138,6 +136,20 @@ class Calibrate(object):
             else:
                 print "Stop pressing! You have already calibrated!"
 
+    def get_mill_pos(self, x, y, limb):
+        alph = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+        acceptable = {'right': ['a1', 'a4', 'a7', 'b2', 'b4', 'b6', 'c3',
+                                'c4', 'c5', 'd1', 'd2', 'd3', 'd5', 'd6',
+                                'd7'],
+                      'left': ['e3', 'e4', 'e5', 'f2', 'f4', 'f6', 'g1',
+                               'g4', 'g7']}
+        mill_x = alph[x]
+        mill = mill_x + str(y+1)
+        if mill in acceptable[limb]:
+            return mill
+        else:
+            return None
+
     def generate_positions(self):
         """
         Generates positions given position 0,0 has been registered.
@@ -150,25 +162,99 @@ class Calibrate(object):
             cur_bottom_pose = self._the_pose
             for y in range(8):
                 for x in range(8):
-                    x_o = 0.05*x
-                    y_o = y * 0.05 * -1
+                    x_o = 0.065*x
+                    y_o = y * 0.065 * -1
                     t = (7 - y, 7 - x)  # yep
-                    one = self._find_joint_position(
+                    bottom_pos = self._find_joint_position(
                         cur_bottom_pose,
                         x_off=x_o,
                         y_off=y_o
                     )
-                    two = self._find_joint_position(
+                    top_pos = self._find_joint_position(
                         cur_bottom_pose,
                         x_off=x_o,
                         y_off=y_o,
                         z_off=0.10
                     )
                     rospy.sleep(0.1)
-                    self._chess_pos[t] = [one, two]
-                    if len(self._chess_pos[t][0]) == 0:
+                    self._mill_pos[t] = [bottom_pos, top_pos]
+                    if len(self._mill_pos[t][0]) == 0:
                         missed_pos.append((t, "bottom"))
-                    if len(self._chess_pos[t][1]) == 0:
+                    if len(self._mill_pos[t][1]) == 0:
+                        missed_pos.append((t, "top"))
+            return missed_pos
+
+    def generate_right_positions(self):
+        """
+        Generates positions given position a,1 has been registered.
+        WARNING: Make sure chessboard is parallel to robot.
+        Returns a list of non-generated positions (most likely
+        to be empty)
+        """
+
+        if len(self.br_pos) != 0:
+            missed_pos = []
+            cur_bottom_pose = self._the_pose
+            for y in range(6, -1, -1):
+                for x in range(4):
+                    x_o = (6 - y) * 0.065
+                    y_o = 0.065*x
+                    # t = (7 - y, 7 - x)  # yep
+                    t = self.get_mill_pos(x, y, self._limb)
+                    if not t:
+                        continue
+                    print t
+                    bottom_pos = self._find_joint_position(
+                        cur_bottom_pose,
+                        x_off=x_o,
+                        y_off=y_o
+                    )
+                    top_pos = self._find_joint_position(
+                        cur_bottom_pose,
+                        x_off=x_o,
+                        y_off=y_o,
+                        z_off=0.10
+                    )
+                    rospy.sleep(0.1)
+                    self._mill_pos[t] = [bottom_pos, top_pos]
+                    if len(self._mill_pos[t][0]) == 0:
+                        missed_pos.append((t, "bottom"))
+                    if len(self._mill_pos[t][1]) == 0:
+                        missed_pos.append((t, "top"))
+            return missed_pos
+
+    def generate_left_positions(self):
+        """
+        Generates positions given position e,1 has been registered.
+        WARNING: Make sure chessboard is parallel to robot.
+        Returns a list of non-generated positions (most likely
+        to be empty)
+        """
+
+        if len(self.br_pos) != 0:
+            missed_pos = []
+            cur_bottom_pose = self._the_pose
+            for y in range(7):
+                for x in range(4,7):
+                    x_o = 0.05*x
+                    y_o = y * 0.05 * -1
+                    t = get_mill_pos(6-y, 6-x, self._limb)
+                    bottom_pos = self._find_joint_position(
+                        cur_bottom_pose,
+                        x_off=x_o,
+                        y_off=y_o
+                    )
+                    top_pos = self._find_joint_position(
+                        cur_bottom_pose,
+                        x_off=x_o,
+                        y_off=y_o,
+                        z_off=0.10
+                    )
+                    rospy.sleep(0.1)
+                    self._mill_pos[t] = [bottom_pos, top_pos]
+                    if len(self._mill_pos[t][0]) == 0:
+                        missed_pos.append((t, "bottom"))
+                    if len(self._mill_pos[t][1]) == 0:
                         missed_pos.append((t, "top"))
             return missed_pos
 
@@ -179,12 +265,14 @@ class Calibrate(object):
 
         print "Saving your positions to file!"
         f = open(file, 'w')
-        f.write('default_pos=' + str(self._default_pos) + '\n')
+        f.write('picking_pos=' + str(self._picking_pos) + '\n')
         f.write('neutral_pos=' + str(self._neutral_pos) + '\n')
-        for x in range(8):
-            for y in range(8):
-                t = (x, y)
-                f.write(str(t) + "=" + str(self._chess_pos[t]) + '\n')
+        for x in range(7):
+            for y in range(7):
+                t = self.get_mill_pos(x, y, self._limb)
+                if not t:
+                    continue
+                f.write(str(t) + "=" + str(self._mill_pos[t]) + '\n')
         f.close()
 
     def get_locations(self):
@@ -203,77 +291,112 @@ class Calibrate(object):
             elif self.read_file == 'n':
                 print "Alright then: using previous values."
                 return
-
             else:
-                print ("Move the " + self._limb + " arm to the default "
-                       "position (for picking) and "
-                       "press the circle button ")
-                while(len(self._default_pos) == 0 and not rospy.is_shutdown()):
-                    rospy.sleep(0.1)
-                print ("Default gripping position - Registered.")
-
-                print ("Move the " + self._limb + " arm to the neutral "
-                       "position (for picking) and "
-                       "press the circle button ")
-                while(len(self._neutral_pos) == 0 and not rospy.is_shutdown()):
-                    rospy.sleep(0.1)
-                print ("Default gripping position - Registered.")
-
-                print ("Move same arm to (0,0) position and press the"
-                       "cirle button to record")
-                while(len(self.br_pos) == 0 and not rospy.is_shutdown()):
-                    rospy.sleep(0.1)
-                print "Well done!"
-
-                print "Starting generating positions"
-                missed = self.generate_positions()
-                print "Done generating positions"
-                if len(missed) != 0:
-                    print "The IK generator has missed the following positions"
-                    print missed
-                    print "You will now repeat the calibration. Try again :)"
-                    # todo add manual partial calibration
+                if self._limb == "right":
+                    self.calibrate_right()
                 else:
-                    print "Saving your new configuration!"
-                    self._save_config(self._config_path + "positions.config")
-                    self.done_calibration = True
+                    self.calibrate_left()
+
+    def calibrate_right(self):
+        print ("Move the " + self._limb + " arm to the neutral "
+               "position and press the circle button ")
+        while(len(self._neutral_pos) == 0 and not rospy.is_shutdown()):
+            rospy.sleep(0.1)
+        print ("Neutral gripping position - Registered.")
+
+        print ("Move same arm to (a, 1) position and press the"
+               "cirle button to record")
+        while(len(self.br_pos) == 0 and not rospy.is_shutdown()):
+            rospy.sleep(0.1)
+        print "Well done!"
+
+        print "Starting generating positions"
+        missed = self.generate_right_positions()
+        print "Done generating positions"
+        if len(missed) != 0:
+            print "The IK generator has missed the following positions"
+            print missed
+            print "You will now repeat the calibration. Try again :)"
+            # todo add manual partial calibration
+        else:
+            print "Saving your new configuration!"
+            self._save_config(self._config_path + "right_positions.config")
+            self.done_calibration = True
+
+    def calibrate_left(self):
+        print ("Move the " + self._limb + " arm to the default "
+               "position (for picking) and "
+               "press the circle button ")
+        while(len(self._picking_pos) == 0 and not rospy.is_shutdown()):
+            rospy.sleep(0.1)
+        print ("Default gripping position - Registered.")
+
+        print ("Move the " + self._limb + " arm to the neutral "
+               "position (for picking) and "
+               "press the circle button ")
+        while(len(self._neutral_pos) == 0 and not rospy.is_shutdown()):
+            rospy.sleep(0.1)
+        print ("Neutral gripping position - Registered.")
+
+        print ("Move same arm to (e,1) position and press the"
+               "cirle button to record")
+        while(len(self.br_pos) == 0 and not rospy.is_shutdown()):
+            rospy.sleep(0.1)
+        print "Well done!"
+
+        print "Starting generating positions"
+        missed = self.generate_left_positions()
+        print "Done generating positions"
+        if len(missed) != 0:
+            print "The IK generator has missed the following positions"
+            print missed
+            print "You will now repeat the calibration. Try again :)"
+            # todo add manual partial calibration
+        else:
+            print "Saving your new configuration!"
+            self._save_config(self._config_path + "left_positions.config")
+            self.done_calibration = True
+
 
     def test(self):
         """
         Tests the four corners.
         """
-
         if not self.done_calibration:
             print "Calibrate the positions first!"
             return -1
-
+        print "TESTING!"
         self._baxter_limb.move_to_joint_positions(self._neutral_pos)
-        print "Going to position 0,0"
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(0, 0)][1])
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(0, 0)][0])
+        print "Going to position a,1"
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('a1')][1])
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('a1')][0])
         self._baxter_limb.move_to_joint_positions(self._neutral_pos)
-        print "Going to position 0,7"
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(0, 7)][1])
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(0, 7)][0])
         self._baxter_limb.move_to_joint_positions(self._neutral_pos)
-        print "Going to position 7,0"
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(7, 0)][1])
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(7, 0)][0])
+        print "Going to position a,7"
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('a7')][1])
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('a7')][0])
         self._baxter_limb.move_to_joint_positions(self._neutral_pos)
-        print "Going to position 7,7"
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(7, 7)][1])
-        self._baxter_limb.move_to_joint_positions(self._chess_pos[(7, 7)][0])
+        print "Going to position d,1"
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('d1')][1])
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('d1')][0])
+        self._baxter_limb.move_to_joint_positions(self._neutral_pos)
+        self._baxter_limb.move_to_joint_positions(self._neutral_pos)
+        print "Going to position d,7"
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('d7')][1])
+        self._baxter_limb.move_to_joint_positions(self._mill_pos[('d7')][0])
         self._baxter_limb.move_to_joint_positions(self._neutral_pos)
 
 
 def main():
-    rospy.init_node("learn_play_calibrate")
+    rospy.init_node("baxter_mill_calibrate")
     rs = baxter_interface.RobotEnable()
     rs.enable()
-    cal = Calibrate("right")
-    cal.get_locations()
-    cal.test()
-
+    right = Calibrate("right")
+    right.get_locations()
+    right.test()
+    left = Calibrate("left")
+    left.get_locations()
+    left.test()
 
 if __name__ == "__main__":
     sys.exit(main())
