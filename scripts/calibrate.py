@@ -1,26 +1,17 @@
 #!/usr/bin/python
 
 import sys
+from copy import deepcopy
 import rospy
 import rospkg
 import baxter_interface
-# import tf
-from copy import deepcopy
-
 from geometry_msgs.msg import (
     PoseStamped,
     Pose,
     Point,
     # Quaternion,
 )
-
 from std_msgs.msg import Header
-
-# from sensor_msgs.msg import (
-#     # Image,
-#     # JointState,
-#     )
-
 from baxter_core_msgs.srv import (
     SolvePositionIK,
     SolvePositionIKRequest,
@@ -36,19 +27,15 @@ class Calibrate(object):
     def __init__(self, limb='left'):
         self._rp = rospkg.RosPack()
         self._config_path = self._rp.get_path('baxter_mill') + '/config/'
-
         self._limb = limb
         self._baxter_limb = baxter_interface.Limb(self._limb)
         self._neutral_pos = {}
         self._picking_pos = {}
-
         self._neutral_bool = False
         self._picking_bool = True
-
-        self._mill_pos = {}  # dict of list (tuple) of dict (sigh)
-
-        self.pick_pos = {}  # picking position
-        self.br_pos = {}  # bottom right position (7,0)
+        self._mill_pos = {}
+        self.pick_pos = {}
+        self.br_pos = {}
         self._the_pose = Pose()
         self._should_io = baxter_interface.DigitalIO(self._limb +
                                                      '_shoulder_button')
@@ -56,11 +43,9 @@ class Calibrate(object):
                                                    '_upper_button')
         self._circle_io = baxter_interface.DigitalIO(self._limb +
                                                      '_lower_button')
-
         ik_srv = "ExternalTools/" + limb + "/PositionKinematicsNode/IKService"
         self._iksvc = rospy.ServiceProxy(ik_srv, SolvePositionIK)
         self._ikreq = SolvePositionIKRequest()
-
         self._circle_io.state_changed.connect(self._default_points)
         self.done_calibration = False
 
@@ -70,7 +55,6 @@ class Calibrate(object):
         offsets from it (to avoid opening the structure all the time
         outside of the function).
         '''
-
         ik_request = SolvePositionIKRequest()
         the_pose = deepcopy(pose)
         the_pose['position'] = Point(x=pose['position'].x + x_off,
@@ -85,18 +69,16 @@ class Calibrate(object):
         resp = self._iksvc(ik_request)
         return dict(zip(resp.joints[0].name, resp.joints[0].position))
 
-    def _blink_light(self, io_component="right_itb_light_outer"):
+    def _blink_light(self, io_component=self._limb+"_itb_light_outer"):
         """
         Blinks a Digital Output on then off.
         """
-
         b = baxter_interface.digital_io.DigitalIO(io_component)
         print "Initial state: ", b.state
-        # One second should be enough to notice it
         b.set_output(True)
-        rospy.sleep(1)
+        rospy.sleep(1.5)
         b.set_output(False)
-        rospy.sleep(1)
+        rospy.sleep(1.5)
 
     def _default_points(self, value):
         """
@@ -133,13 +115,8 @@ class Calibrate(object):
             else:
                 print "Stop pressing! You have already calibrated!"
 
-    def get_mill_pos(self, x, y, limb):
+    def _get_mill_pos(self, x, y, limb):
         alph = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
-        # acceptable = {'right': ['a1', 'a4', 'a7', 'b2', 'b4', 'b6', 'c3',
-        #                         'c4', 'c5', 'd1', 'd2', 'd3', 'd5', 'd6',
-        #                         'd7'],
-        #               'left': ['e3', 'e4', 'e5', 'f2', 'f4', 'f6', 'g1',
-        #                        'g4', 'g7']}
         acceptable = {'left': ['a1', 'a4', 'a7', 'b2', 'b4', 'b6', 'c3',
                                'c4', 'c5', 'd1', 'd2', 'd3', 'd5', 'd6',
                                'd7', 'e3', 'e4', 'e5', 'f2', 'f4', 'f6',
@@ -151,10 +128,10 @@ class Calibrate(object):
         else:
             return None
 
-    def generate_right_positions(self):
+    def _generate_right_positions(self):
         pass
 
-    def generate_left_positions(self):
+    def _generate_left_positions(self):
         """
         Generates positions given position e,1 has been registered.
         WARNING: Make sure chessboard is parallel to robot.
@@ -170,7 +147,7 @@ class Calibrate(object):
                     x_o = (6 - y) * 0.065
                     y_o = 0.065 * (6 - x) * -1
                     # t = (7 - y, 7 - x)  # yep
-                    t = self.get_mill_pos(x, y, self._limb)
+                    t = self._get_mill_pos(x, y, self._limb)
                     if not t:
                         continue
                     print t
@@ -204,7 +181,7 @@ class Calibrate(object):
         f.write('neutral_pos=' + str(self._neutral_pos) + '\n')
         for x in range(7):
             for y in range(7):
-                t = self.get_mill_pos(x, y, self._limb)
+                t = self._get_mill_pos(x, y, self._limb)
                 if not t:
                     continue
                 f.write(str(t) + "=" + str(self._mill_pos[t]) + '\n')
@@ -257,7 +234,7 @@ class Calibrate(object):
         print "Well done!"
 
         print "Starting generating positions"
-        missed = self.generate_left_positions()
+        missed = self._generate_left_positions()
         print "Done generating positions"
         if len(missed) != 0:
             print "The IK generator has missed the following positions"
@@ -270,13 +247,11 @@ class Calibrate(object):
             self._save_config(self._config_path + "left_positions.config")
             self.done_calibration = True
 
-
     def test(self):
         if self._limb == "right":
             self.test_right()
         else:
             self.test_left()
-
 
     def test_move(self, pos):
         self._baxter_limb.move_to_joint_positions(self._neutral_pos)
@@ -285,9 +260,6 @@ class Calibrate(object):
         self._baxter_limb.move_to_joint_positions(self._mill_pos[(pos)][1])
 
     def test_right(self):
-        """
-        Tests the four corners.
-        """
         pass
 
     def test_left(self):
