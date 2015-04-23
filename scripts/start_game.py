@@ -17,6 +17,7 @@ from baxter_mill import BaxterController
 def test(limb):
     bc = BaxterController(limb)
     print "STARTING TEST!"
+    bc.send_image(bc._cheeky_face_path)
     bc.pick("p1")
     bc.release("a1")
     print "TEST FINISHED!"

@@ -7,6 +7,7 @@ find_package(catkin
   sensor_msgs
   std_msgs
   tf
+  cv_bridge
   baxter_core_msgs
   baxter_interface
 )
@@ -19,6 +20,7 @@ catkin_package(
   sensor_msgs
   std_msgs
   tf
+  cv_bridge
   baxter_core_msgs
   baxter_interface
 )

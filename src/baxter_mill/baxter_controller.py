@@ -10,7 +10,8 @@ from sensor_msgs.msg import (
 )
 
 import baxter_interface
-
+import cv
+import cv_bridge
 
 class BaxterController(object):
 
