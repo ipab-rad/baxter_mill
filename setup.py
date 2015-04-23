@@ -3,7 +3,7 @@ from distutils.core import setup
 from catkin_pkg.python_setup import generate_distutils_setup
 
 d = generate_distutils_setup()
-d['packages'] = ['learn_play']
+d['packages'] = ['baxter_mill']
 d['package_dir'] = {'': 'src'}
 
 setup(**d)
