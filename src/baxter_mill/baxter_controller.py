@@ -31,6 +31,14 @@ class BaxterController(object):
         self._baxter_head.set_pan(0.0)
         print "Calibrating gripper..."
         self._baxter_gripper.calibrate()
+        self._baxter_gripper.set_holding_force(50.0)
+
+        self.acceptable = {'left': ['a1', 'a4', 'a7', 'b2', 'b4', 'b6', 'c3',
+                                    'c4', 'c5', 'd1', 'd2', 'd3', 'd5', 'd6',
+                                    'd7', 'e3', 'e4', 'e5', 'f2', 'f4', 'f6',
+                                    'g1', 'g4', 'g7'],
+                            'positions' : ['p1','p2', 'p3', 'p4', 'p5', 'p6',
+                                    'p7', 'p8', 'p9']}
 
         self._mill_pos = {}
         self._picking_pos = {}
@@ -44,13 +52,9 @@ class BaxterController(object):
 
     def _get_mill_pos(self, x, y, limb):
         alph = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
-        acceptable = {'left': ['a1', 'a4', 'a7', 'b2', 'b4', 'b6', 'c3',
-                               'c4', 'c5', 'd1', 'd2', 'd3', 'd5', 'd6',
-                               'd7', 'e3', 'e4', 'e5', 'f2', 'f4', 'f6',
-                               'g1', 'g4', 'g7']}
         mill_x = alph[x]
         mill = mill_x + str(y+1)
-        if mill in acceptable[limb]:
+        if mill in self.acceptable[limb]:
             return mill
         else:
             return None
@@ -134,12 +138,18 @@ class BaxterController(object):
         if pos[0] == "p":
             self._baxter_limb.move_to_joint_positions(self._picking_pos[(pos)][1])
             self._baxter_limb.move_to_joint_positions(self._picking_pos[(pos)][0])
-            self.gripper_open(50)
+            self.gripper_open(70)
             rospy.sleep(0.2)
             self._baxter_limb.move_to_joint_positions(self._picking_pos[(pos)][1])
         else:
             self._baxter_limb.move_to_joint_positions(self._mill_pos[(pos)][1])
             self._baxter_limb.move_to_joint_positions(self._mill_pos[(pos)][0])
-            self.gripper_open(50)
+            self.gripper_open(70)
             rospy.sleep(0.2)
             self._baxter_limb.move_to_joint_positions(self._mill_pos[(pos)][1])
+        self._baxter_limb.move_to_joint_positions(self._neutral_pos)
+
+    def go_neutral(self):
+        self._baxter_limb.move_to_joint_positions(self._neutral_pos)
+
+

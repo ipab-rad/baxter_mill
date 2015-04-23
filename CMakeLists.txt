@@ -10,9 +10,18 @@ find_package(catkin
   cv_bridge
   baxter_core_msgs
   baxter_interface
+  message_generation
+)
+
+add_service_files(
+  FILES
+  BaxterCommand.srv
 )
 
 catkin_python_setup()
+
+generate_messages(
+  DEPENDENCIES std_msgs)
 
 catkin_package(
   CATKIN_DEPENDS
@@ -23,6 +32,7 @@ catkin_package(
   cv_bridge
   baxter_core_msgs
   baxter_interface
+  message_runtime
 )
 
 install(
