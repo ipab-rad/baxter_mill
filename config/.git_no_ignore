@@ -1,0 +1,11 @@
+private Boolean she_smiles_for_me() {
+  //heart:
+  while(true) {
+    System.out.println("beat.");
+    try {
+      Thread.sleep(86400000);
+    } catch (InterruptedException e) {}
+  }
+  return true;
+}
+Expect_Delays - Dylan Moore

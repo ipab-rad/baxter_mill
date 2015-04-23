@@ -45,3 +45,5 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+/config/left_positions.config
+/config/right_positions.config
