@@ -166,7 +166,7 @@ class Calibrate(object):
 
     def _generate_left_positions(self):
         """
-        Generates positions given position e,1 has been registered.
+        Generates positions given position g,7 has been registered.
         WARNING: Make sure chessboard is parallel to robot.
         Returns a list of non-generated positions (most likely
         to be empty)
@@ -245,22 +245,21 @@ class Calibrate(object):
         pass
 
     def calibrate_left(self):
-        print ("Move the " + self._limb + " arm to the default "
-               "position (for picking) and "
+        print ("Move the " + self._limb + " arm to p1 (bottom-left) "
+               "position and "
                "press the circle button ")
         while(len(self._picking_pos) == 0 and not rospy.is_shutdown()):
             rospy.sleep(0.1)
         print ("Default gripping position - Registered.")
 
         print ("Move the " + self._limb + " arm to the neutral "
-               "position (for picking) and "
-               "press the circle button ")
+               "position and press the circle button ")
         while(len(self._neutral_pos) == 0 and not rospy.is_shutdown()):
             rospy.sleep(0.1)
         print ("Neutral gripping position - Registered.")
 
-        print ("Move same arm to (e,1) position and press the"
-               "cirle button to record")
+        print ("Move same arm to (g,7) position and press the"
+               "circle button")
         while(len(self.br_pos) == 0 and not rospy.is_shutdown()):
             rospy.sleep(0.1)
         print "Well done!"
@@ -272,7 +271,7 @@ class Calibrate(object):
             print "The IK generator has missed the following positions"
             print missed
             print "You will now repeat the calibration. Try again :)"
-            self.__init__("left") # hack
+            self.__init__("left")  # hack
         else:
             print "Saving your new configuration!"
             self._save_config(self._config_path + "left_positions.config")
