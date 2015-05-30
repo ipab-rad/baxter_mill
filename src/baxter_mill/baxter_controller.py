@@ -10,7 +10,7 @@ from sensor_msgs.msg import (
 )
 
 import baxter_interface
-import cv
+import cv2
 import cv_bridge
 
 class BaxterController(object):
@@ -19,7 +19,7 @@ class BaxterController(object):
         self._rp = rospkg.RosPack()
         self._config_path = self._rp.get_path('baxter_mill') + '/config/'
         self._config_file_path = self._config_path + limb + '_positions.config'
-        self._images_path = self._rp.get_path('learn_play') + '/share/images/'
+        self._images_path = self._rp.get_path('baxter_mill') + '/share/images/'
         self._good_face_path = self._images_path + "good_face.jpg"
         self._angry_face_path = self._images_path + "angry_face.jpg"
         self._cheeky_face_path = self._images_path + "cheeky_face.jpg"
@@ -98,8 +98,8 @@ class BaxterController(object):
 
         @param path: path to the image file to load and send
         """
-        img = cv.LoadImage(path)
-        msg = cv_bridge.CvBridge().cv_to_imgmsg(img, encoding="bgr8")
+        img = cv2.imread(path)
+        msg = cv_bridge.CvBridge().cv2_to_imgmsg(img, encoding="bgr8")
         pub = rospy.Publisher('/robot/xdisplay', Image, latch=True)
         pub.publish(msg)
         # Sleep to allow for image to be published.
